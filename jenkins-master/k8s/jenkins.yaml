@@ -1,0 +1,188 @@
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jenkins-service-account
+  namespace: NAMESPACE
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::340924313311:role/Jenkins-Master-Secret-Access
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: csi-secrets-store-provider-aws-cluster-role
+  namespace: NAMESPACE
+rules:
+- apiGroups: [""]
+  resources: ["serviceaccounts/token"]
+  verbs: ["create"]
+- apiGroups: [""]
+  resources: ["serviceaccounts"]
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "watch", "create", "list", "delete"]
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["list"]
+- apiGroups: [""]
+  resources: ["serviceaccounts"]
+  verbs: ["list"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: jenkins-sa-binding
+subjects:
+- kind: ServiceAccount
+  name: jenkins-service-account
+  namespace: NAMESPACE
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+
+# Exposing jenkins master
+
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jenkins-ingress
+  namespace: NAMESPACE
+  annotations:
+    kubernetes.io/ingress.class: nginx
+spec:
+  rules:
+  - host: 22c-redhat-jenkinsmaster.exchangeweb.net
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: jenkins-svc
+            port:
+              number: 8080
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: jenkins-svc
+  namespace: NAMESPACE
+spec:
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+    - port: 50000
+      targetPort: 50000
+      name: agent
+  selector:
+    name: jenkins
+
+# Creating jenkins master
+
+---
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: jenkins-master
+  namespace: NAMESPACE
+  labels:
+    name: jenkins
+spec:
+  serviceName: jenkins-svc
+  replicas: 1
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      name: jenkins
+  template:
+    metadata:
+      name: jenkins
+      labels:
+        name: jenkins
+    spec:
+      serviceAccountName: jenkins-service-account
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: jenkins
+          image: nick8989/jenkins-master-updated:v0.2
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: master-secret
+                  key: ADMIN_PASSWORD
+            - name: BUILD_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: master-secret
+                  key: BUILD_PASSWORD
+            - name: READONLY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: master-secret
+                  key: READONLY_PASSWORD 
+          ports:
+            - name: http-port
+              containerPort: 8080
+            - name: jnlp-port
+              containerPort: 50000
+          volumeMounts:
+            - name: aws-secrets
+              mountPath: /mnt/aws-secrets
+              readOnly: true
+      volumes:
+      - name: aws-secrets
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: "aws-secrets"
+
+---
+
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: aws-secrets
+  namespace: NAMESPACE
+spec:
+  parameters:
+    objects: |
+      - objectName: /dev/jenkins/ADMIN_PASSWORD
+        objectAlias: ADMIN_PASSWORD
+        objectType: ssmparameter
+      - objectName: /dev/jenkins/BUILD_PASSWORD
+        objectAlias: BUILD_PASSWORD
+        objectType: ssmparameter
+      - objectName: /dev/jenkins/READONLY_PASSWORD
+        objectAlias: READONLY_PASSWORD
+        objectType: ssmparameter
+  provider: aws
+  secretObjects: # [OPTIONAL] SecretObject defines the desired state of synced K8s secret objects
+  - data:
+    - objectName: ADMIN_PASSWORD
+      key: ADMIN_PASSWORD
+    - objectName: BUILD_PASSWORD
+      key: BUILD_PASSWORD
+    - objectName: READONLY_PASSWORD
+      key: READONLY_PASSWORD
+    secretName: master-secret
+    type: Opaque

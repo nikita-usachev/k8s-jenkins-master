@@ -1,0 +1,29 @@
+# Use a small base image and only install the tools that our agent might need
+
+FROM alpine:3.17
+
+# Install a few necessary tools for our agent image
+
+RUN apk add --update \
+    python3 \
+    python3-dev \
+    py-pip \
+    curl
+
+# Install AWS CLI v2
+
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+
+RUN unzip awscliv2.zip
+
+RUN ./aws/install -i /usr/local/aws -b /usr/local/bin/aws
+
+# Other packages and tools that might be needed for our agent
+
+RUN apk add --no-cache bash gawk sed grep bc coreutils make jq curl openrc docker helm
+
+# Install kubectl
+
+RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \
+    && chmod +x kubectl \
+    && mv ./kubectl /usr/local/bin/kubectl

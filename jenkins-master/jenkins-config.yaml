@@ -1,0 +1,40 @@
+jenkins:
+  crumbIssuer:
+    standard:
+      excludeClientIPFromCrumb: true
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+       - id: "admin"
+         password: ${ADMIN_PASSWORD}
+       - id: "build"
+         password: ${BUILD_PASSWORD}
+       - id: "readonlyuser"
+         password: ${READONLY_PASSWORD}
+  authorizationStrategy:
+    globalMatrix:
+      permissions:
+        - "Overall/Read:readonlyuser"
+        - "Overall/Read:build"
+        - "Job/Create:build"
+        - "Overall/Administer:admin"
+  clouds:
+  - kubernetes:
+      name: "kubernetes-agent"
+      namespace: jenkinsmaster
+      jenkinsUrl: "http://jenkins-svc:8080"
+      templates:
+        - name: "agent"
+        - containers:
+            - args: 
+              image: jenkins/inbound-agent:latest
+              livenessProbe:
+                failureThreshold: 0
+                initialDelaySeconds: 0
+                periodSeconds: 0
+                successThreshold: 0
+                timeoutSeconds: 0
+              name: "jnlp"
+              workingDir: "/tmp"
+              
