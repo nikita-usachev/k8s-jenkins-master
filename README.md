@@ -180,11 +180,11 @@ After these steps are done, make sure to change the hostname value in your Ingre
 * Secret would not be created through SecretProviderClass
 	* This was solved by adding the argument ```syncSecret.enabled=true``` to the end of the csi driver installation command.
 	* If csi driver is already installed and you think you might be missing this addition, simply run the original command from the beginning of the task, but instead use: ```helm upgrade```, along with the syncSecret addition.
----
+
 * Issues with key/objectName inside of SecretProviderClass
 	* Your ```objectName``` should be the path/name of the secret that you created in Parameter Store. ```objectAlias``` can be named anything, but it will need to match your ENV variable ```key``` inside of your pod. 
 	* Just be careful and pay close attention to where values need to be in this section. I got very confused with this part.
----
+
 * Error ```exec /usr/bin/tini: exec format error```
 	* This error means that your docker image was built on the wrong architecture. To fix this, rebuild your docker image with the ```--platform linux/amd64``` extension. This issue is most common if building from MacBook with M1 chip.
 
@@ -192,12 +192,9 @@ After these steps are done, make sure to change the hostname value in your Ingre
 
 Help with the setup of your Docker image and some deeper explanation
 * [https://www.digitalocean.com/community/tutorials/how-to-automate-jenkins-setup-with-docker-and-jenkins-configuration-as-code](https://www.digitalocean.com/community/tutorials/how-to-automate-jenkins-setup-with-docker-and-jenkins-configuration-as-code) 
----
 Helpful article on the steps needed for this project
 * [https://docs.aws.amazon.com/systems-manager/latest/userguide/integrating_csi_driver.html#integrating_csi_driver_update_deployment](https://docs.aws.amazon.com/systems-manager/latest/userguide/integrating_csi_driver.html#integrating_csi_driver_update_deployment)
----
 How to set up your StatefulSet to integrate with your SecretProviderClass
 * [https://secrets-store-csi-driver.sigs.k8s.io/topics/set-as-env-var.html](https://secrets-store-csi-driver.sigs.k8s.io/topics/set-as-env-var.html)
----
 More information on Pipelines with Jenkins
 * [https://www.jenkins.io/doc/book/pipeline/](https://www.jenkins.io/doc/book/pipeline/)
